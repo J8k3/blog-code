@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Static CIDR View</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    <style type="text/css">
+        .section {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                <h1>Static CIDR View</h1>
+                <p>
+                    <a id="back-link" href="index.html">Back to calculator</a>
+                </p>
+
+                <div id="summary" class="section"></div>
+                <div id="subnet-options" class="section" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="cidr.js"></script>
+    <script type="text/javascript">
+        var MAX_SUBNETS_TO_RENDER = 8192;
+
+        function getQueryParam(name) {
+            var params = new URLSearchParams(window.location.search);
+            return params.get(name);
+        }
+
+        function escapeHtml(text) {
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function ipToInt(ip) {
+            var parts = ip.split('.').map(Number);
+            return (((parts[0] << 24) >>> 0) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+        }
+
+        function intToIp(intVal) {
+            return [
+                (intVal >>> 24) & 255,
+                (intVal >>> 16) & 255,
+                (intVal >>> 8) & 255,
+                intVal & 255
+            ].join('.');
+        }
+
+        function normalizeNetwork(rawNetwork) {
+            if (!rawNetwork) {
+                return null;
+            }
+
+            var value = decodeURIComponent(rawNetwork).trim();
+            var match = value.match(/^(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,2})$/);
+            if (!match) {
+                return null;
+            }
+
+            var ip = match[1];
+            var prefix = parseInt(match[2], 10);
+            var octets = ip.split('.');
+
+            for (var i = 0; i < octets.length; i++) {
+                var octetNum = parseInt(octets[i], 10);
+                if (isNaN(octetNum) || octetNum < 0 || octetNum > 255) {
+                    return null;
+                }
+            }
+
+            if (isNaN(prefix) || prefix < 0 || prefix > 32) {
+                return null;
+            }
+
+            return ip + '/' + prefix;
+        }
+
+        function renderError(title, detail) {
+            var summary = document.getElementById('summary');
+            var options = document.getElementById('subnet-options');
+
+            summary.innerHTML =
+                '<p><strong>' + escapeHtml(title) + '</strong></p>' +
+                '<p>' + escapeHtml(detail) + '</p>' +
+                '<p>Example: <code>?network=10.0.0.0/16</code></p>';
+
+            options.style.display = 'none';
+            options.innerHTML = '';
+        }
+
+        function buildSubnetRows(cidrNetworkAddress, netCidr, subnetCidr) {
+            var vpcBase = ipToInt(cidrNetworkAddress);
+            var subnetAddressCount = Math.pow(2, (32 - subnetCidr));
+            var subnetCount = Math.pow(2, (subnetCidr - netCidr));
+            var rows = [];
+
+            if (subnetCount > MAX_SUBNETS_TO_RENDER) {
+                return {
+                    capped: true,
+                    subnetCount: subnetCount,
+                    rows: rows
+                };
+            }
+
+            for (var i = 0; i < subnetCount; i++) {
+                var subnetBase = vpcBase + (i * subnetAddressCount);
+                var subnetAddress = intToIp(subnetBase);
+                var subnet = new PrivateSubnet(subnetAddress, netCidr, subnetCidr);
+                rows.push(subnet);
+            }
+
+            return {
+                capped: false,
+                subnetCount: subnetCount,
+                rows: rows
+            };
+        }
+
+        function buildSubnetOptionsHtml(netCidr, selectedSubnetCidr) {
+            var maxOptionCidr = (netCidr <= 28) ? 28 : 32;
+            var totalVpcAddresses = Math.pow(2, (32 - netCidr));
+            var html = '';
+
+            for (var cidr = netCidr; cidr <= maxOptionCidr; cidr++) {
+                var hostAddressCount = Math.pow(2, (32 - cidr));
+                var subnetCount = totalVpcAddresses / hostAddressCount;
+                var marker = (cidr === selectedSubnetCidr) ? ' <strong>(selected)</strong>' : '';
+                html += '[/'+ cidr +'] ' + subnetCount + ' Subnet(s), each with [' + hostAddressCount + '] Addresses' + marker + '<br />';
+            }
+
+            return html;
+        }
+
+        function render() {
+            var rawNetwork = getQueryParam('network');
+            var network = normalizeNetwork(rawNetwork);
+
+            if (!rawNetwork) {
+                renderError('Missing query string value.', 'Provide a CIDR in the network parameter.');
+                return;
+            }
+
+            if (!network) {
+                renderError('Invalid network value.', rawNetwork + ' is not a valid IPv4 CIDR.');
+                return;
+            }
+
+            try {
+                var cidr = new CIDR(network);
+                var parts = network.split('/');
+                var netAddress = parts[0];
+                var netCidr = parseInt(parts[1], 10);
+                var networkSubnet = new PrivateSubnet(netAddress, netCidr, netCidr);
+                var totalAddresses = networkSubnet.addressCount;
+
+                var requestedSubnetCidr = parseInt(getQueryParam('subnet_cidr'), 10);
+                var maxOptionCidr = (netCidr <= 28) ? 28 : 32;
+                var selectedSubnetCidr = isNaN(requestedSubnetCidr) ? netCidr : requestedSubnetCidr;
+
+                if (selectedSubnetCidr < netCidr || selectedSubnetCidr > maxOptionCidr) {
+                    selectedSubnetCidr = netCidr;
+                }
+
+                var subnetResult = buildSubnetRows(cidr.getNetworkAddress(), netCidr, selectedSubnetCidr);
+
+                var tableHtml =
+                    '<h3>Subnet List for /' + escapeHtml(selectedSubnetCidr) + '</h3>' +
+                    '<table class="table table-condensed table-striped">' +
+                    '<thead><tr><th>Subnet CIDR</th><th>First</th><th>Last</th></tr></thead><tbody>';
+
+                if (subnetResult.capped) {
+                    tableHtml += '<tr><td colspan="3">Subnet count is ' + escapeHtml(subnetResult.subnetCount) + '. Rendering is capped at ' + escapeHtml(MAX_SUBNETS_TO_RENDER) + '.</td></tr>';
+                } else {
+                    for (var i = 0; i < subnetResult.rows.length; i++) {
+                        var s = subnetResult.rows[i];
+                        tableHtml += '<tr>' +
+                            '<td>' + escapeHtml(s.address.cidrNotation) + '</td>' +
+                            '<td>' + escapeHtml(s.firstAddress) + '</td>' +
+                            '<td>' + escapeHtml(s.lastAddress) + '</td>' +
+                            '</tr>';
+                    }
+                }
+
+                tableHtml += '</tbody></table>';
+
+                var summary = document.getElementById('summary');
+                summary.innerHTML =
+                    '<p><strong>Selected Network:</strong> ' + escapeHtml(network) + '</p>' +
+                    '<p><strong>Active Subnet Size:</strong> /' + escapeHtml(selectedSubnetCidr) + '</p>' +
+                    '<p><strong>Total Subnets:</strong> ' + escapeHtml(subnetResult.subnetCount) + '</p>' +
+                    '<hr />' +
+                    '<h3>Network Details</h3>' +
+                    '<p><strong>Network Address:</strong> ' + escapeHtml(cidr.getNetworkAddress()) + '</p>' +
+                    '<p><strong>Broadcast Address:</strong> ' + escapeHtml(cidr.getBroadcastAddress()) + '</p>' +
+                    '<p><strong>Subnet Mask:</strong> ' + escapeHtml(networkSubnet.address.getSubnetMask()) + '</p>' +
+                    '<p><strong>Total Addresses:</strong> ' + escapeHtml(totalAddresses) + '</p>' +
+                    '<hr />' +
+                    tableHtml;
+
+                var options = document.getElementById('subnet-options');
+                options.style.display = 'block';
+                options.innerHTML = buildSubnetOptionsHtml(netCidr, selectedSubnetCidr);
+
+                document.getElementById('back-link').setAttribute('href', 'index.html?network=' + encodeURIComponent(network));
+            } catch (err) {
+                renderError('Could not process network value.', err.message || 'Unknown parse error.');
+            }
+        }
+
+        render();
+    </script>
+</body>
+</html>

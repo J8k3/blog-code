@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Easy AWS VPC CIDR Calculator</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
+    <style type="text/css">
+        .input-group {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                <h1>Easy AWS VPC CIDR Calculator</h1>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="input-group">
+                    <label for="network-range">Pick a Private Range:</label>
+                    <select class="form-control" id="network-range">
+                        <option value="10">10.0.0.0 - 10.255.255.255 [10.0.0.0/8]</option>
+                        <option value="172">172.16.0.0 - 172.31.255.255 [172.16.0.0/12]</option>
+                        <option value="192">192.168.0.0 - 192.168.255.255 [192.168.0.0/16]</option>
+                    </select>
+                    <div class="description">
+                        These are standard private address blocks as defined by RFC 1918.
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="cidr">Narrow That Down to the # of Needed Addresses In Your VPC (CIDR):</label>
+                    <select class="form-control" id="cidr"></select>
+                    <div class="description">
+                        CIDR determines how many subnets are created from the selected private range.
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="network">Select the Network Option: (<span id="network-count">0</span> Options)</label>
+                    <select class="form-control" id="network"></select>
+                    <div class="description">
+                        These are the actual network blocks derived from the selected range and CIDR.
+                    </div>
+                </div>
+                    <div class="description" style="margin-top: 6px;">
+                        <a id="static-link" href="static.html" target="_blank">Open static view for selected network</a>
+                    </div>
+                <div class="input-group">
+                    <label for="subnets">How Many Small Network Pieces Needed In Your VPC (Subnets):</label>
+                    <select class="form-control" id="subnets"></select>
+                </div>
+
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <label for="config-info">Your Network Information:</label>
+                    <div class="row">
+                        <div id="config-info" class="col-sm-12"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="input-group">
+                    <label for="subnet-info">Your Subnet Information:</label>
+                    <div class="row">
+                        <div id="subnet-info" class="col-sm-12"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <h2>But what is a CIDR you ask?</h2>
+                <p>First an explanation of an IPv4 Address, "IP Address", format; IPv6 exists but isn't supported today in a VPC. Don't get too attached because CIDR notation requires an understanding of an IP Address format but represents something slightly different. Start of my picturing a cypher game where one thing represents another. The format of an IP Address is much like that, but in computer terms. An IP Address consists of four (4) three (3) digit series of numbers. Each number series, separated by a period, is called an octet and the numbers can be between 0 and 255. The zero based range of values covers 256 total numbers. In that range or any future subdivision of that range, the first and last numbers are reserved and can't be assigned to a server. An octet represents eight (8), hence the name octet, binary number positions called bits, each with a state of 0 (off) or 1 (on). That's a total of 32 binary number positions in a IPv4 address or a 32-bit value. Each bit represents a value of two (2) to the power of zero (0) through seven (7). The value represented by an octet is the sum of values represented by bits in the on state. This may be easier to understand in the below "Single Octet Example"</p>
+                <h3>Single Octet Example</h3>
+                <p>The below table is a breakdown of a single octet representing the value of one hundred thirty (130).</p>
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>&nbsp;</th>
+                            <th>Position 1</th>
+                            <th>Position 2</th>
+                            <th>Position 3</th>
+                            <th>Position 4</th>
+                            <th>Position 5</th>
+                            <th>Position 6</th>
+                            <th>Position 7</th>
+                            <th>Position 8</th>
+                        </tr>
+                    </thead>
+                    <tr>
+                        <td>&nbsp;</td>
+                        <td>2<sup>7</sup></td>
+                        <td>2<sup>6</sup></td>
+                        <td>2<sup>5</sup></td>
+                        <td>2<sup>4</sup></td>
+                        <td>2<sup>3</sup></td>
+                        <td>2<sup>2</sup></td>
+                        <td>2<sup>1</sup></td>
+                        <td>2<sup>0</sup></td>
+                    </tr>
+                    <tr>
+                        <td>Position Value</td>
+                        <td>128</td>
+                        <td>64</td>
+                        <td>32</td>
+                        <td>16</td>
+                        <td>8</td>
+                        <td>4</td>
+                        <td>2</td>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <td>Binary Representation</td>
+                        <td>1</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>1</td>
+                        <td>0</td>
+                    </tr>
+                </table>
+                <p>With four octets separated by a period we can represent an IPv4 address.</p>
+                <h3>Full IPv4 Address Example</h3>
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th colspan="8">Octet 1</th>
+                            <th>&nbsp;</th>
+                            <th colspan="8">Octet 2</th>
+                            <th>&nbsp;</th>
+                            <th colspan="8">Octet 3</th>
+                            <th>&nbsp;</th>
+                            <th colspan="8">Octet 4</th>
+                        </tr>
+                    </thead>
+                    <tr>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>.</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>.</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>.</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td>0</td>
+                    </tr>
+                    <tr>
+                        <td colspan="8">255</td>
+                        <td>&nbsp;</td>
+                        <td colspan="8">255</td>
+                        <td>&nbsp;</td>
+                        <td colspan="8">255</td>
+                        <td>&nbsp;</td>
+                        <td colspan="8">0</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <h2>CIDR Notation</h2>
+                <p>A CIDR block is a higher level abstraction of this concept. In a CIDR block, only a single bit within an octet can be on at any time and instead of representing a specific IP address, it represents a fixed prefix within an IP address.</p>
+            </div>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-2.2.4.min.js" integrity="sha256-BbhdlvQf/xTY9gja0Dq3HiwQF8LaCRTXxZKRutelT44=" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+    <script type="text/javascript" src="cidr.js"></script>
+    <script type="text/javascript">
+        var blockEvents = false;
+
+        $(document).ready(function () {
+            $('#network-range').off('change').on('change', function () {
+                handle_networkrangechange();
+            });
+
+            $('#cidr').off('change').on('change', function () {
+                handle_cidrchange();
+            });
+
+            $('#network').off('change').on('change', function () {
+                handle_networkchange();
+            });
+
+            $('#subnets').off('change').on('change', function () {
+                handle_subnetschange();
+            });
+
+
+            $(document).off('shown.bs.collapse', '.panel-body.collapse').on('shown.bs.collapse', '.panel-body.collapse', function () {
+                var panelId = $(this).attr('id');
+                var iconId = panelId.replace('-panel', '-panel-icon');
+                var icon = $('#' + iconId);
+                icon.removeClass('glyphicon-triangle-bottom');
+                icon.addClass('glyphicon-triangle-top');
+            });
+
+            $(document).off('hidden.bs.collapse', '.panel-body.collapse').on('hidden.bs.collapse', '.panel-body.collapse', function () {
+                var panelId = $(this).attr('id');
+                var iconId = panelId.replace('-panel', '-panel-icon');
+                var icon = $('#' + iconId);
+                icon.removeClass('glyphicon-triangle-top');
+                icon.addClass('glyphicon-triangle-bottom');
+            });
+            handle_networkrangechange();
+        });
+
+        function ipToInt(ip) {
+            var parts = ip.split('.').map(Number);
+            return (((parts[0] << 24) >>> 0) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+        }
+
+        function intToIp(intVal) {
+            return [
+                (intVal >>> 24) & 255,
+                (intVal >>> 16) & 255,
+                (intVal >>> 8) & 255,
+                intVal & 255
+            ].join('.');
+        }
+
+        function updateStaticLink() {
+            var selectedNetwork = $('#network option:selected').val();
+            var link = $('#static-link');
+
+            if (selectedNetwork) {
+                link.attr('href', 'static.html?network=' + encodeURIComponent(selectedNetwork));
+            } else {
+                link.attr('href', 'static.html');
+            }
+        }
+
+        function handle_networkrangechange() {
+            if (!blockEvents) {
+                try {
+                    blockEvents = true;
+                    $('#cidr option').remove();
+
+                    var minCidr = 16;
+                    var maxCidr = 28;
+
+                    for (var cidr = minCidr; cidr <= maxCidr; cidr++) {
+                        var addressCount = Math.pow(2, (32 - cidr));
+                        $('#cidr').append("<option value=\"" + cidr + "\">[/" + cidr + "] " + addressCount + " Address In VPC</option>");
+                    }
+                } finally {
+                    blockEvents = false;
+                    handle_cidrchange();
+                }
+            }
+        }
+
+        function handle_cidrchange() {
+            if (!blockEvents) {
+                try {
+                    blockEvents = true;
+                    $('#network option').remove();
+
+                    var cidr = parseInt($('#cidr option:selected').val(), 10);
+                    var octet1 = parseInt($('#network-range option:selected').val(), 10);
+                    var count = 0;
+
+                    var rangeStart = octet1 + '.0.0.0';
+                    var rangeEnd = octet1 + '.255.255.255';
+
+                    if (octet1 === 172) {
+                        rangeStart = '172.16.0.0';
+                        rangeEnd = '172.31.255.255';
+                    } else if (octet1 === 192) {
+                        rangeStart = '192.168.0.0';
+                        rangeEnd = '192.168.255.255';
+                    }
+
+                    var blockSize = Math.pow(2, (32 - cidr));
+                    var start = ipToInt(rangeStart);
+                    var end = ipToInt(rangeEnd);
+                    var firstAligned = Math.ceil(start / blockSize) * blockSize;
+
+                    for (var current = firstAligned; current + blockSize - 1 <= end; current += blockSize) {
+                        var cidrText = intToIp(current) + '/' + cidr;
+                        $('#network').append("<option value=\"" + cidrText + "\">" + cidrText + "</option>");
+                        count++;
+                    }
+
+                    $('#network-count').html(count);
+                    updateStaticLink();
+                } finally {
+                    blockEvents = false;
+                    handle_networkchange();
+                }
+            }
+        }
+
+        function handle_networkchange() {
+            if (!blockEvents) {
+                try {
+                    blockEvents = true;
+                    $('#subnets option').remove();
+
+                    var parts = $('#network option:selected').val().split('/');
+                    var vpcCidr = parseInt(parts[1], 10);
+                    var maxCidr = 28;
+                    var totalVpcAddresses = Math.pow(2, (32 - vpcCidr));
+
+                    for (var cidr = vpcCidr; cidr <= maxCidr; cidr++) {
+                        var hostAddressCount = Math.pow(2, (32 - cidr));
+                        var subnetCount = totalVpcAddresses / hostAddressCount;
+                        $('#subnets').append("<option value=\"" + cidr + "\">[/" + cidr + "] " + subnetCount + " Subnet(s) In VPC, each with [" + hostAddressCount + "] Addresses</option>");
+                    }
+
+                } finally {
+                    blockEvents = false;
+                    handle_subnetschange();
+                }
+            }
+        }
+
+        function handle_subnetschange() {
+            if (!blockEvents) {
+                try {
+                    blockEvents = true;
+                    $('#config-info').empty();
+                    $('#subnet-info').empty();
+                    updateStaticLink();
+
+                    var parts = $('#network option:selected').val().split('/');
+                    var netAddress = parts[0];
+                    var networkCIDR = parseInt(parts[1], 10);
+                    var subnetCIDR = parseInt($('#subnets option:selected').val(), 10);
+
+                    var network = new PrivateSubnet(netAddress, networkCIDR, networkCIDR);
+                    $('#config-info').append(Format_Network(network));
+
+                    var netHostAddressCount = Math.pow(2, (32 - networkCIDR));
+                    var subnetHostAddressCount = Math.pow(2, (32 - subnetCIDR));
+                    var subnetCount = netHostAddressCount / subnetHostAddressCount;
+
+                    var baseInt = ipToInt(netAddress);
+
+                    for (var c = 0; c < subnetCount; c++) {
+                        var subnetAddress = intToIp(baseInt + (c * subnetHostAddressCount));
+                        var subnet = new PrivateSubnet(subnetAddress, networkCIDR, subnetCIDR);
+                        $('#subnet-info').append(Format_Subnet(subnet, c));
+                    }
+                } finally {
+                    blockEvents = false;
+                }
+            }
+        }
+
+        function Format_Network(network) {
+            var output = '<div class="panel panel-info" style="margin-bottom: 0;">' +
+                             '<div class="panel-heading">VPC CIDR: ' + network.address.cidrNotation + '</div>' +
+                             '<div class="panel-body">Network Address Class: ' + network.address.getAddressClass() + '<br />' +
+                             'VPC Default Gateway: ' + network.defaultGateway + '<br />' +
+                             'VPC DNS Address: ' + network.localVPCDNS + '<br />' +
+                             'Number of Possible Subnets: ' + network.subnetCount + '</div>' +
+                         '</div>';
+
+            return output;
+        }
+
+        function Format_Subnet(subnet, index) {
+            var subnetId = 'subnet-' + index;
+            var awsUsableCount = subnet.addressCount - 5;
+            if (awsUsableCount < 0) {
+                awsUsableCount = 0;
+            }
+
+            var output = '<div class="panel panel-info" style="margin-bottom: 0;">' +
+                             '<div class="panel-heading">' +
+                                '<div class="row">' +
+                                    '<div class="col-sm-11">' +
+                                        'Subnet CIDR: ' + subnet.address.cidrNotation +
+                                    '</div>' +
+                                    '<div class="col-sm-1">' +
+                                        '<a href="#' + subnetId + '-panel" data-toggle="collapse"><span class="glyphicon glyphicon-triangle-top" aria-hidden="true" id="' + subnetId + '-panel-icon" style="color: black"></span></a>' +
+                                    '</div>' +
+                                '</div>' +
+                            '</div>' +
+                            '<div id="' + subnetId + '-panel" class="panel-body collapse in" style="font-size: 90%;">' +
+                                'Subnet Mask: ' + subnet.address.getSubnetMask() + '<br />' +
+                                'Network Address: ' + subnet.address.address + '<br />' +
+                                'Broadcast Address: ' + subnet.broadcastAddress + '<br />' +
+                                'First Address: ' + subnet.firstAddress + '<br />' +
+                                'Last Address: ' + subnet.lastAddress + '<br />' +
+                                'Total Addresses: ' + subnet.addressCount + '<br />' +
+                                'AWS Usable Addresses: ' + awsUsableCount + '<br />' +
+                                'AWS Reserved: ' + subnet.address.address + ', ' + subnet.defaultGateway + ', ' + subnet.localVPCDNS + ', ' + subnet.localVPCReserved + ', ' + subnet.broadcastAddress +
+                            '</div>' +
+                         '</div>';
+
+            return output;
+        }
+    </script>
+</body>
+
+</html>
+
+
