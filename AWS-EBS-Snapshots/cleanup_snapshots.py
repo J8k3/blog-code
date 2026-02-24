@@ -1,27 +1,28 @@
-import os
+import boto3
 from datetime import datetime, timedelta, timezone
 
-import boto3
 
 def clean_snapshots_handler(event, context):
-    print("Beginning automated snapshot cleanup.")
-    ec2 = boto3.resource("ec2")
+    print('Begining automated snapshot cleanup.')
+    ec2 = boto3.resource('ec2')
 
-    retention_days = int(event.get("retention_days", 7))
-    delete_time = datetime.now(timezone.utc) - timedelta(days=retention_days)
-    print(f"Deleting snapshots older than [{delete_time.isoformat()}]")
+    retentionDays = int(event.get('retention_days', 7))
+    deleteTime = datetime.now(timezone.utc) - timedelta(days=retentionDays)
+    print('Deleting snapshots older than [{0}]'.format(deleteTime.isoformat()))
 
     snapshots = ec2.snapshots.filter(
-        OwnerIds=["self"],
-        Filters=[{"Name": "tag:Retain", "Values": ["false"]}],
+        OwnerIds=['self'],
+        Filters=[{'Name': 'tag:Retain', 'Values': ['false']}],
     )
 
-    deleted_count = 0
+    deletedCount = 0
     for snapshot in snapshots:
-        print(f"Evaluating snapshot [{snapshot.snapshot_id}]")
-        if snapshot.start_time <= delete_time:
-            print(f"Deleting snapshot [{snapshot.snapshot_id}]")
-            snapshot.delete()
-            deleted_count += 1
+        snapshotId = snapshot.snapshot_id
+        print('Evaluating snapshot [{0}]'.format(snapshotId))
 
-    return f"Finished automated snapshot cleanup. Deleted {deleted_count} snapshot(s)."
+        if snapshot.start_time <= deleteTime:
+            print('Deleting snapshot [{0}]'.format(snapshotId))
+            snapshot.delete()
+            deletedCount += 1
+
+    return 'Finished automated snapshot cleanup. Deleted {0} snapshot(s).'.format(deletedCount)
