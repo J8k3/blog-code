@@ -6,3 +6,4 @@ widget.intercom.io
 js.intercomassets.com
 api-iam.intercom.io
 protechts.net
+js.stripe.com
